@@ -161,6 +161,37 @@ Edit settings in `.env`:
 - Add more training data
 - Check bot worker logs
 
+## Testing with CLI Tool
+
+Bot X includes a comprehensive CLI tool for testing all components:
+
+```bash
+# Test everything at once
+botx test-all
+
+# Test individual components
+botx test-db        # Database connection
+botx test-openai    # OpenAI API
+botx test-twitter   # Twitter API
+
+# Add training data
+botx add-qa -q "What is Bot X?" -a "An intelligent Twitter bot!"
+
+# List all Q&A pairs
+botx list-qa
+
+# Test matching
+botx test-match "What is this bot?"
+
+# Simulate mention processing
+botx simulate-mention "@bot what is your purpose?"
+
+# View configuration
+botx config
+```
+
+See [CLI_GUIDE.md](CLI_GUIDE.md) for detailed documentation.
+
 ## Next Steps
 
 - Implement frontend (issue #13-15)
