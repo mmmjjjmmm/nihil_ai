@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: botx
+      POSTGRES_PASSWORD: botx_password
+      POSTGRES_DB: botx
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://botx:botx_password@db:5432/botx
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app/app
+    depends_on:
+      - db
+
+  bot:
+    build: .
+    command: python -m app.bot.runner
+    environment:
+      DATABASE_URL: postgresql://botx:botx_password@db:5432/botx
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app/app
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
