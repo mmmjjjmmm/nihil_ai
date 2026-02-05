@@ -1,3 +1,11 @@
+La version ultrasimple
+Une question est posée au bot (i.e il est mentionné dans une conversation X)
+L'outil cherche dans la base de questions.
+Si la question existe, l'outil répond selon la réponse avec la plus grande enchère.
+Si la question n'existe pas, l'outil répond que l'utilisateur peut choisir la réponse qu'il veut pour 1€ (éventuellement on propose 3 réponses + 1 zone de texte libre)
+
+
+
 ### 📄 Master Plan : Bot X Vectoriel (GCP + GitHub)
 
 #### Phase 0 : Administratif & Achats (J-0)
