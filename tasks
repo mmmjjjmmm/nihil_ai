@@ -1,0 +1,186 @@
+### 📄 Master Plan : Bot X Vectoriel (GCP + GitHub)
+
+#### Phase 0 : Administratif & Achats (J-0)
+
+*C'est la phase où tu sors la carte bleue et prépares le terrain.*
+
+* [ ] **Achat Nom de Domaine :**
+* Acheter un domaine (ex: `monbot-admin.com`) chez un registrar (Namecheap, OVH, ou Google Cloud Domains/Squarespace).
+* Ne rien configurer dans les DNS pour l'instant.
+
+
+* [ ] **Souscription API X (Twitter) :**
+* Aller sur [developer.twitter.com](https://developer.twitter.com).
+* Souscrire au plan **Basic** (~100$/mois).
+* Générer : `Consumer Key`, `Consumer Secret`, `Access Token`, `Access Token Secret`.
+
+
+* [ ] **Clé API OpenAI :**
+* Créer un compte sur [platform.openai.com](https://platform.openai.com).
+* Ajouter du crédit (5-10$).
+* Générer une clé API (sk-...).
+
+
+* [ ] **Configuration GCP (Projet) :**
+* Créer un nouveau projet GCP (ex: `bot-x-mvp`).
+* Activer la facturation.
+* Activer les APIs suivantes via la console :
+* `Cloud Run API`
+* `Cloud SQL Admin API`
+* `Artifact Registry API`
+* `Cloud Build API`
+
+
+
+
+
+---
+
+#### Phase 1 : Infrastructure Cloud & Base de Données (J-1)
+
+*Mise en place du "bunker" de données.*
+
+* [ ] **Instance Cloud SQL (Postgres) :**
+* Créer une instance PostgreSQL 15 ou 16 (Enterprise ou Standard edition n'est pas nécessaire, prends **db-f1-micro** ou **db-custom-1-3840** pour commencer).
+* **Région :** Choisir la même que celle visée pour le code (ex: `europe-west9` Paris ou `europe-west1` Belgique).
+* **Connexions :** Cocher "Public IP" (pour simplifier l'accès MVP) mais ajouter ton IP locale dans les réseaux autorisés.
+* Créer un utilisateur DB (`bot_user`) et un mot de passe fort.
+* Créer une base de données (`bot_db`).
+
+
+* [ ] **Activation Vectorielle :**
+* Se connecter à la base (via un client comme DBeaver ou pgAdmin).
+* Exécuter : `CREATE EXTENSION IF NOT EXISTS vector;`
+
+
+* [ ] **Création de la Table :**
+* Exécuter le script SQL :
+```sql
+CREATE TABLE questions (
+    id SERIAL PRIMARY KEY,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    embedding vector(1536), -- Dimension pour text-embedding-3-small
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+```
+
+
+
+
+
+---
+
+#### Phase 2 : Structure du Code & Environnement Local (J-2)
+
+*Organisation du dépôt GitHub.*
+
+* [ ] **Structure des dossiers :**
+* Créer un repo `bot-x-engine`.
+* Arborescence recommandée :
+```text
+/app
+  /api       # Code de l'API (FastAPI)
+  /bot       # Code du Worker Twitter
+  /core      # Config, Database connection
+  /services  # Logique métier (OpenAI, Matching)
+/frontend    # Code React Admin
+Dockerfile
+requirements.txt
+
+```
+
+
+
+
+* [ ] **Environnement Virtuel Python :**
+* `python -m venv venv`
+* Installer : `fastapi`, `uvicorn`, `sqlalchemy`, `psycopg2-binary`, `pgvector`, `openai`, `tweepy`.
+
+
+
+---
+
+#### Phase 3 : Développement Backend (API + Bot) (J-3 à J-5)
+
+* [ ] **Service OpenAI (Embeddings) :**
+* Coder une fonction `get_embedding(text)` qui appelle `client.embeddings.create(input=text, model="text-embedding-3-small")`.
+
+
+* [ ] **API Endpoint (Admin) :**
+* Route `POST /qa` : Reçoit JSON `{q, a}`, appelle `get_embedding(q)`, insère en DB.
+
+
+* [ ] **Bot Worker (Logique de détection) :**
+* Utiliser `tweepy.Client` avec tes tokens.
+* Fonction `check_mentions()` : Récupère les tweets mentionnant l'ID du bot depuis le dernier `since_id`.
+
+
+* [ ] **Bot Worker (Logique de réponse) :**
+* Pour chaque mention : Nettoyer le texte.
+* Générer le vecteur du tweet.
+* Requête SQL de recherche (similaire à ceci) :
+```sql
+SELECT answer, 1 - (embedding <=> :tweet_vector) as similarity
+FROM questions
+WHERE 1 - (embedding <=> :tweet_vector) > 0.8 -- Seuil de confiance
+ORDER BY similarity DESC LIMIT 1;
+
+```
+
+
+* Si résultat trouvé : `client.create_tweet(in_reply_to_tweet_id=..., text=...)`.
+
+
+
+---
+
+#### Phase 4 : Frontend & DNS (J-6)
+
+*L'interface visible et le nom de domaine.*
+
+* [ ] **App React simple :**
+* `npm create vite@latest frontend -- --template react`
+* Un formulaire simple : Input Question, Textarea Réponse, Bouton "Envoyer".
+* Appel `fetch` vers ton API Cloud Run.
+
+
+* [ ] **Configuration DNS & Hébergement Frontend :**
+* Le plus simple avec GCP est d'utiliser **Firebase Hosting** (gratuit pour le statique) pour le frontend.
+* Dans le projet Firebase, aller dans "Hosting" > "Add Custom Domain".
+* Entrer `www.monbot-admin.com` (ou `admin.monbot-admin.com`).
+* **Action requise :** Firebase va te donner des enregistrements TXT et A à copier dans la zone DNS de ton registrar (là où tu as acheté le domaine).
+* Attendre la propagation (peut prendre 1h à 24h).
+
+
+
+---
+
+#### Phase 5 : Déploiement & CI/CD (J-7)
+
+*Automatisation finale.*
+
+* [ ] **Dockerfile :**
+* Configurer pour lancer *soit* l'API, *soit* le Bot Worker (via une variable d'environnement ou une commande CMD).
+
+
+* [ ] **Artifact Registry :**
+* Créer un dépôt Docker nommé `bot-repo` dans GCP.
+
+
+* [ ] **GitHub Secrets :**
+* Ajouter dans GitHub : `GCP_PROJECT_ID`, `GCP_SA_KEY` (Clé JSON d'un compte de service avec droits Cloud Run/Artifact Registry).
+
+
+* [ ] **GitHub Actions (`deploy.yml`) :**
+1. Checkout code.
+2. Auth GCP.
+3. Build Docker Image.
+4. Push to Artifact Registry.
+5. **Deploy Service 1 (API) :** `gcloud run deploy bot-api ...`
+6. **Deploy Service 2 (Bot Worker) :** `gcloud run deploy bot-worker --no-allow-unauthenticated ...` (Le worker n'a pas besoin d'être accessible du public, il tourne en fond).
+
+
+
+C'est une feuille de route dense mais complète. Veux-tu que je génère le code du **Dockerfile** spécifique pour gérer à la fois l'API et le Worker ?
