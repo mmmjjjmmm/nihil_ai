@@ -14,13 +14,13 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: str
 
-    # Twitter/X API
-    twitter_api_key: str
-    twitter_api_secret: str
-    twitter_access_token: str
-    twitter_access_token_secret: str
-    twitter_bearer_token: str
-    twitter_bot_id: str
+    # Twitter/X API (optional if only using other platforms)
+    twitter_api_key: str = ""
+    twitter_api_secret: str = ""
+    twitter_access_token: str = ""
+    twitter_access_token_secret: str = ""
+    twitter_bearer_token: str = ""
+    twitter_bot_id: str = ""
 
     # Bluesky API
     bluesky_handle: str = ""
