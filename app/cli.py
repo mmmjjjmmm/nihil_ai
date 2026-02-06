@@ -9,8 +9,10 @@ from sqlalchemy import text
 from app.core.database import SessionLocal, init_db, Question
 from app.services.embedding import get_embedding
 from app.services.responder import clean_tweet_text, find_best_match, process_mention
-from app.bot.worker import check_mentions, post_reply
+from app.bot.factory import get_worker_by_platform
+from app.bot.base import Mention
 from app.core.config import settings
+from datetime import datetime, timezone
 
 console = Console()
 
@@ -97,15 +99,68 @@ def test_twitter():
     console.print("[bold blue]Testing Twitter API...[/bold blue]")
 
     try:
+        worker = get_worker_by_platform("twitter")
+        if not worker:
+            console.print("✗ Twitter worker: [red]Failed to initialize[/red]")
+            return
+
         # Try to fetch mentions (will return empty if none, but tests connection)
-        mentions = check_mentions()
+        mentions = worker.check_mentions()
 
         console.print("✓ Twitter API: [green]OK[/green]")
         console.print(f"  Bot ID: {settings.twitter_bot_id}")
+        console.print(f"  Bot username: {worker.get_bot_username()}")
         console.print(f"  Recent mentions: {len(mentions)}")
 
     except Exception as e:
         console.print(f"✗ Twitter API error: [red]{str(e)}[/red]")
+
+
+@cli.command()
+def test_bluesky():
+    """Test Bluesky API connection."""
+    console.print("[bold blue]Testing Bluesky API...[/bold blue]")
+
+    try:
+        worker = get_worker_by_platform("bluesky")
+        if not worker:
+            console.print("✗ Bluesky worker: [red]Failed to initialize[/red]")
+            console.print("  Make sure atproto package is installed and credentials are configured")
+            return
+
+        # Try to fetch mentions (will return empty if none, but tests connection)
+        mentions = worker.check_mentions()
+
+        console.print("✓ Bluesky API: [green]OK[/green]")
+        console.print(f"  Bot handle: {settings.bluesky_handle}")
+        console.print(f"  Service URL: {settings.bluesky_service_url}")
+        console.print(f"  Recent mentions: {len(mentions)}")
+
+    except Exception as e:
+        console.print(f"✗ Bluesky API error: [red]{str(e)}[/red]")
+
+
+@cli.command()
+@click.argument('platform')
+def test_platform(platform):
+    """Test a specific platform API connection."""
+    console.print(f"[bold blue]Testing {platform.capitalize()} API...[/bold blue]")
+
+    try:
+        worker = get_worker_by_platform(platform)
+        if not worker:
+            console.print(f"✗ {platform} worker: [red]Failed to initialize[/red]")
+            return
+
+        # Try to fetch mentions
+        mentions = worker.check_mentions()
+
+        console.print(f"✓ {platform.capitalize()} API: [green]OK[/green]")
+        console.print(f"  Bot username: {worker.get_bot_username()}")
+        console.print(f"  Recent mentions: {len(mentions)}")
+
+    except Exception as e:
+        console.print(f"✗ {platform.capitalize()} API error: [red]{str(e)}[/red]")
 
 
 @cli.command()
@@ -214,18 +269,36 @@ def test_match(text):
 
 @cli.command()
 @click.argument('tweet_text')
-@click.option('--tweet-id', default='test_123', help='Tweet ID for testing')
-def simulate_mention(tweet_text, tweet_id):
-    """Simulate processing a tweet mention."""
-    console.print(f"[bold blue]Simulating mention processing...[/bold blue]")
-    console.print(f"Tweet ID: {tweet_id}")
-    console.print(f"Tweet text: '{tweet_text}'\n")
+@click.option('--platform', '-p', default='twitter', help='Platform (twitter, bluesky)')
+@click.option('--mention-id', default='test_123', help='Mention ID for testing')
+def simulate_mention(tweet_text, platform, mention_id):
+    """Simulate processing a mention from any platform."""
+    console.print(f"[bold blue]Simulating {platform} mention processing...[/bold blue]")
+    console.print(f"Mention ID: {mention_id}")
+    console.print(f"Text: '{tweet_text}'\n")
 
     try:
         db = SessionLocal()
 
+        # Get the platform worker
+        worker = get_worker_by_platform(platform)
+        if not worker:
+            console.print(f"✗ {platform} worker: [red]Failed to initialize[/red]")
+            return
+
+        bot_username = worker.get_bot_username()
+
+        # Create a mock Mention object
+        mention = Mention(
+            id=mention_id,
+            text=tweet_text,
+            author_id="test_author",
+            created_at=datetime.now(timezone.utc),
+            platform=platform
+        )
+
         # Clean text
-        cleaned = clean_tweet_text(tweet_text, "bot")
+        cleaned = clean_tweet_text(mention.text, bot_username)
         console.print(f"✓ Cleaned text: '{cleaned}'")
 
         # Generate embedding
@@ -258,11 +331,18 @@ def test_all():
     """Run all tests to verify bot is working correctly."""
     console.print("[bold cyan]Running all Bot X tests...[/bold cyan]\n")
 
+    # Base tests
     tests = [
         ("Database Connection", test_db),
         ("OpenAI API", test_openai),
-        ("Twitter API", test_twitter),
     ]
+
+    # Add platform tests based on enabled platforms
+    enabled_platforms = settings.get_enabled_platforms
+    if "twitter" in enabled_platforms:
+        tests.append(("Twitter API", test_twitter))
+    if "bluesky" in enabled_platforms:
+        tests.append(("Bluesky API", test_bluesky))
 
     for test_name, test_func in tests:
         console.print(f"\n{'='*60}")
@@ -293,9 +373,13 @@ def config():
     safe_settings = [
         ("Database URL", settings.database_url.replace(settings.database_url.split('@')[0].split('://')[1], '***') if '@' in settings.database_url else settings.database_url),
         ("OpenAI API Key", settings.openai_api_key[:10] + "..." if settings.openai_api_key else "[red]Not set[/red]"),
-        ("Twitter Bot ID", settings.twitter_bot_id),
         ("Embedding Model", settings.embedding_model),
         ("Similarity Threshold", str(settings.similarity_threshold)),
+        ("Enabled Platforms", ", ".join(settings.get_enabled_platforms)),
+        ("", ""),  # Separator
+        ("Twitter Bot ID", settings.twitter_bot_id if settings.twitter_bot_id else "[yellow]Not set[/yellow]"),
+        ("Bluesky Handle", settings.bluesky_handle if settings.bluesky_handle else "[yellow]Not set[/yellow]"),
+        ("Bluesky Service URL", settings.bluesky_service_url),
     ]
 
     for setting, value in safe_settings:

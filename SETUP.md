@@ -1,13 +1,18 @@
 # Bot X Setup Guide
 
-This guide covers setting up the Bot X backend (issues #9, #10, #11, #12).
+This guide covers setting up the Bot X multi-platform bot backend.
 
 ## Project Structure
 
 ```
 /app
   /api       # FastAPI application
-  /bot       # Twitter bot worker
+  /bot       # Multi-platform bot workers
+    base.py           # Abstract platform interface
+    twitter_worker.py # Twitter implementation
+    bluesky_worker.py # Bluesky implementation
+    factory.py        # Worker factory
+    runner.py         # Main bot loop
   /core      # Configuration and database
   /services  # Business logic (embeddings, responses)
 /frontend    # React admin (to be implemented)
@@ -21,7 +26,9 @@ docker-compose.yml
 1. Python 3.12+
 2. PostgreSQL with pgvector extension
 3. OpenAI API key
-4. Twitter API credentials (API v2)
+4. Platform credentials (at least one):
+   - Twitter API credentials (API v2) for Twitter/X
+   - Bluesky handle and app password for Bluesky
 
 ## Local Development Setup
 
@@ -47,8 +54,9 @@ cp .env.example .env
 Edit `.env` with your actual credentials:
 - Database URL
 - OpenAI API key
-- Twitter API credentials
-- Bot user ID
+- Platform selection (ENABLED_PLATFORMS)
+- Twitter API credentials (if using Twitter)
+- Bluesky credentials (if using Bluesky)
 
 ### 3. Set Up Database
 
@@ -112,24 +120,67 @@ curl -X POST http://localhost:8000/qa \
   }'
 ```
 
+## Platform Setup
+
+### Twitter/X
+
+1. Create a Twitter Developer account at [developer.twitter.com](https://developer.twitter.com/)
+2. Create a new app and generate API credentials
+3. Enable OAuth 2.0 and get access tokens
+4. Note your bot's user ID
+5. Add credentials to `.env`:
+   ```
+   TWITTER_API_KEY=...
+   TWITTER_API_SECRET=...
+   TWITTER_ACCESS_TOKEN=...
+   TWITTER_ACCESS_TOKEN_SECRET=...
+   TWITTER_BEARER_TOKEN=...
+   TWITTER_BOT_ID=...
+   ```
+
+### Bluesky
+
+1. Create a Bluesky account at [bsky.app](https://bsky.app)
+2. Go to Settings → App Passwords
+3. Generate a new app password
+4. Add credentials to `.env`:
+   ```
+   BLUESKY_HANDLE=yourbot.bsky.social
+   BLUESKY_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+   ```
+
+### Platform Selection
+
+In `.env`, set which platforms to enable:
+```bash
+# Enable Twitter only
+ENABLED_PLATFORMS=["twitter"]
+
+# Enable Bluesky only
+ENABLED_PLATFORMS=["bluesky"]
+
+# Enable both
+ENABLED_PLATFORMS=["twitter", "bluesky"]
+```
+
 ## How It Works
 
 1. **Training**: Add question-answer pairs via `/qa` endpoint
    - Questions are converted to embeddings using OpenAI
    - Stored in PostgreSQL with pgvector
 
-2. **Detection**: Bot worker polls Twitter for mentions
+2. **Detection**: Bot worker polls enabled platforms for mentions
    - Checks every 60 seconds (configurable)
-   - Tracks processed mentions to avoid duplicates
+   - Tracks processed mentions per platform to avoid duplicates
 
 3. **Matching**: For each mention:
-   - Clean and normalize tweet text
+   - Clean and normalize text
    - Generate embedding
    - Search database using cosine similarity
    - Threshold: 0.8 (configurable)
 
 4. **Response**: If match found:
-   - Reply with matched answer
+   - Reply using platform-specific worker
    - Mark as processed
 
 ## Configuration
@@ -151,10 +202,17 @@ Edit settings in `.env`:
 - Verify DATABASE_URL in .env
 - Check pgvector extension is installed
 
-### Twitter API Issues
+### Platform API Issues
+
+**Twitter:**
 - Verify all credentials are correct
 - Ensure bot has proper permissions
 - Check rate limits
+
+**Bluesky:**
+- Verify handle format (e.g., bot.bsky.social)
+- Check app password is correct
+- Ensure account is not restricted
 
 ### No Responses
 - Lower SIMILARITY_THRESHOLD
@@ -173,6 +231,8 @@ botx test-all
 botx test-db        # Database connection
 botx test-openai    # OpenAI API
 botx test-twitter   # Twitter API
+botx test-bluesky   # Bluesky API
+botx test-platform twitter  # Test specific platform
 
 # Add training data
 botx add-qa -q "What is Bot X?" -a "An intelligent Twitter bot!"
@@ -184,7 +244,8 @@ botx list-qa
 botx test-match "What is this bot?"
 
 # Simulate mention processing
-botx simulate-mention "@bot what is your purpose?"
+botx simulate-mention "@bot what is your purpose?" --platform twitter
+botx simulate-mention "@bot.bsky.social hello" --platform bluesky
 
 # View configuration
 botx config

@@ -1,6 +1,6 @@
 # Bot X CLI Testing Guide
 
-The Bot X CLI tool provides commands to test and verify that all bot components are working correctly.
+The Bot X CLI tool provides commands to test and verify that all bot components are working correctly across multiple platforms.
 
 ## Installation
 
@@ -23,7 +23,7 @@ botx test-all
 This will test:
 - Database connection and pgvector extension
 - OpenAI API connection
-- Twitter API connection
+- All enabled platform APIs (Twitter, Bluesky, etc.)
 
 ### 2. Test Database
 
@@ -53,7 +53,22 @@ Verify Twitter API credentials and connection:
 botx test-twitter
 ```
 
-### 6. Add Question-Answer Pair
+### 6. Test Bluesky API
+
+Verify Bluesky API credentials and connection:
+```bash
+botx test-bluesky
+```
+
+### 7. Test Any Platform
+
+Test a specific platform by name:
+```bash
+botx test-platform twitter
+botx test-platform bluesky
+```
+
+### 8. Add Question-Answer Pair
 
 Add training data to the bot:
 ```bash
@@ -64,14 +79,14 @@ Options:
 - `-q, --question`: The question text
 - `-a, --answer`: The answer text
 
-### 7. List All Q&A Pairs
+### 9. List All Q&A Pairs
 
 View all question-answer pairs in the database:
 ```bash
 botx list-qa
 ```
 
-### 8. Test Similarity Matching
+### 10. Test Similarity Matching
 
 Test how the bot would match a given text:
 ```bash
@@ -83,11 +98,18 @@ This shows:
 - Best matching answer and similarity score
 - Whether it meets the threshold
 
-### 9. Simulate Mention Processing
+### 11. Simulate Mention Processing
 
-Simulate the full process of handling a tweet mention:
+Simulate the full process of handling a mention from any platform:
 ```bash
-botx simulate-mention "Hey @bot, what is Bot X?" --tweet-id test_001
+# Twitter mention
+botx simulate-mention "Hey @bot, what is Bot X?" --platform twitter --mention-id test_001
+
+# Bluesky mention
+botx simulate-mention "Hello @bot.bsky.social" --platform bluesky --mention-id test_002
+
+# Default is Twitter
+botx simulate-mention "Hey @bot, help!" --mention-id test_003
 ```
 
 This shows:
@@ -96,7 +118,11 @@ This shows:
 - Similarity matching
 - Whether the bot would reply
 
-### 10. View Configuration
+Options:
+- `--platform, -p`: Platform to simulate (twitter, bluesky). Default: twitter
+- `--mention-id`: ID for testing. Default: test_123
+
+### 12. View Configuration
 
 Display current bot configuration:
 ```bash
@@ -106,7 +132,9 @@ botx config
 Shows:
 - Database URL (credentials masked)
 - OpenAI API key (partially masked)
+- Enabled platforms
 - Twitter bot ID
+- Bluesky handle
 - Embedding model
 - Similarity threshold
 
@@ -143,7 +171,11 @@ botx test-match "Who made you?"
 
 ### 5. Simulate Full Process
 ```bash
-botx simulate-mention "@bot what is your purpose?"
+# Test Twitter
+botx simulate-mention "@bot what is your purpose?" --platform twitter
+
+# Test Bluesky
+botx simulate-mention "@bot.bsky.social what is your purpose?" --platform bluesky
 ```
 
 ## Troubleshooting
@@ -163,6 +195,12 @@ botx simulate-mention "@bot what is your purpose?"
 - Verify TWITTER_BOT_ID is correct
 - Ensure API access level is appropriate
 
+### Bluesky API Failed
+- Check BLUESKY_HANDLE format (should be like: bot.bsky.social)
+- Verify BLUESKY_APP_PASSWORD is correct
+- Ensure you generated an app password (not your main password)
+- Check BLUESKY_SERVICE_URL (default: https://bsky.social)
+
 ### No Matches Found
 - Add more training data with `botx add-qa`
 - Lower SIMILARITY_THRESHOLD in .env
@@ -174,6 +212,8 @@ botx simulate-mention "@bot what is your purpose?"
 2. **Add diverse training data**: Include variations of questions
 3. **Monitor similarity scores**: Use `botx test-match` to tune threshold
 4. **Check configuration**: Use `botx config` to verify settings
+5. **Test each platform**: Use platform-specific tests to isolate issues
+6. **Simulate mentions**: Test with realistic mention text for each platform
 
 ## Integration with CI/CD
 
@@ -182,7 +222,49 @@ Add to your CI pipeline:
 # In your CI script
 botx test-db
 botx test-openai
-botx test-twitter
+
+# Test enabled platforms
+if [[ "$ENABLED_PLATFORMS" == *"twitter"* ]]; then
+  botx test-twitter
+fi
+
+if [[ "$ENABLED_PLATFORMS" == *"bluesky"* ]]; then
+  botx test-bluesky
+fi
+
+# Or simply
+botx test-all
 ```
 
 This ensures all components are working before deployment.
+
+## Multi-Platform Testing
+
+### Testing Both Platforms Simultaneously
+
+```bash
+# Set in .env
+ENABLED_PLATFORMS=["twitter", "bluesky"]
+
+# Test all at once
+botx test-all
+
+# Add Q&A (shared across platforms)
+botx add-qa -q "What platforms do you support?" -a "I support Twitter and Bluesky!"
+
+# Test matching on both
+botx simulate-mention "What platforms?" --platform twitter
+botx simulate-mention "What platforms?" --platform bluesky
+```
+
+### Platform-Specific Testing
+
+```bash
+# Enable only one platform
+ENABLED_PLATFORMS=["twitter"]
+botx test-all
+
+# Switch to other platform
+ENABLED_PLATFORMS=["bluesky"]
+botx test-all
+```
