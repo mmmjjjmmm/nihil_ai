@@ -6,6 +6,10 @@ from app.core.config import settings
 from app.services.embedding import get_embedding
 from app.bot.base import BasePlatformWorker, Mention
 from app.core.database import MentionTracking
+from app.services.contribution_service import (
+    create_contribution_with_suggestions,
+    create_improvement_contribution
+)
 
 
 def clean_tweet_text(tweet_text: str, bot_username: str) -> str:
@@ -31,7 +35,7 @@ def clean_tweet_text(tweet_text: str, bot_username: str) -> str:
     return text.strip()
 
 
-def find_best_match(db: Session, tweet_vector: list[float]) -> tuple[str, float] | None:
+def find_best_match(db: Session, tweet_vector: list[float]) -> tuple[int, str, str, float, int] | None:
     """
     Find the best matching answer using vector similarity search.
 
@@ -40,11 +44,12 @@ def find_best_match(db: Session, tweet_vector: list[float]) -> tuple[str, float]
         tweet_vector: Embedding vector of the mention
 
     Returns:
-        Tuple of (answer, similarity_score) if match found above threshold, None otherwise
+        Tuple of (question_id, question, answer, similarity_score, contribution_amount_cents)
+        if match found above threshold, None otherwise
     """
     # SQL query to find most similar question using pgvector
     query = text("""
-        SELECT answer, 1 - (embedding <=> :tweet_vector) as similarity
+        SELECT id, question, answer, 1 - (embedding <=> :tweet_vector) as similarity, contribution_amount_cents
         FROM questions
         WHERE 1 - (embedding <=> :tweet_vector) > :threshold
         ORDER BY similarity DESC
@@ -60,7 +65,7 @@ def find_best_match(db: Session, tweet_vector: list[float]) -> tuple[str, float]
     ).fetchone()
 
     if result:
-        return result[0], result[1]
+        return result[0], result[1], result[2], result[3], result[4] or 0
 
     return None
 
@@ -106,32 +111,104 @@ def process_mention(db: Session, mention: Mention, worker: BasePlatformWorker, b
     match = find_best_match(db, mention_vector)
 
     if match:
-        answer, similarity = match
+        question_id, question_text, answer, similarity, contribution_amount = match
         print(f"Found match for {mention.platform} mention {mention.id} with similarity {similarity:.2f}")
 
-        # Post reply using the worker
-        success = worker.post_reply(mention.id, answer)
+        # Create improvement contribution
+        try:
+            improvement = create_improvement_contribution(
+                db,
+                mention.platform,
+                mention.id,
+                mention.author_id,
+                cleaned_text,
+                question_id,
+                answer,
+                contribution_amount
+            )
 
-        if success:
-            # Mark as processed
+            checkout_url = f"{settings.base_url}/checkout/{improvement.token}"
+
+            # Post reply with answer AND improvement option
+            reply = (
+                f"{answer}\n\n"
+                f"💡 Not satisfied? Teach me a better answer: {checkout_url}"
+            )
+
+            success = worker.post_reply(mention.id, reply)
+
+            if success:
+                # Mark as processed
+                tracking = MentionTracking(
+                    platform=mention.platform,
+                    mention_id=mention.id
+                )
+                db.add(tracking)
+                db.commit()
+                print(f"Successfully replied to {mention.platform} mention {mention.id} with improvement option")
+                return True
+            else:
+                print(f"Failed to post reply to {mention.platform} mention {mention.id}")
+                return False
+
+        except Exception as e:
+            print(f"Error creating improvement contribution: {e}")
+            # Fallback: just post the answer without improvement option
+            success = worker.post_reply(mention.id, answer)
+            if success:
+                tracking = MentionTracking(
+                    platform=mention.platform,
+                    mention_id=mention.id
+                )
+                db.add(tracking)
+                db.commit()
+                return True
+            return False
+    else:
+        print(f"No match found for {mention.platform} mention {mention.id} above threshold {settings.similarity_threshold}")
+
+        # Initiate contribution flow
+        try:
+            contribution = create_contribution_with_suggestions(
+                db,
+                mention.platform,
+                mention.id,
+                mention.author_id,
+                cleaned_text
+            )
+
+            checkout_url = f"{settings.base_url}/checkout/{contribution.token}"
+
+            # Create a friendly reply with checkout link
+            reply = (
+                f"I don't have an answer for this yet! 🤔\n\n"
+                f"Help me learn by contributing an answer: {checkout_url}"
+            )
+
+            # Post reply
+            success = worker.post_reply(mention.id, reply)
+
+            if success:
+                print(f"Posted contribution request for {mention.platform} mention {mention.id}")
+
+            # Mark as processed regardless
             tracking = MentionTracking(
                 platform=mention.platform,
                 mention_id=mention.id
             )
             db.add(tracking)
             db.commit()
-            print(f"Successfully replied to {mention.platform} mention {mention.id}")
-            return True
-        else:
-            print(f"Failed to post reply to {mention.platform} mention {mention.id}")
+
+            return success
+
+        except Exception as e:
+            print(f"Error creating contribution for {mention.platform} mention {mention.id}: {e}")
+
+            # Still mark as processed to avoid reprocessing
+            tracking = MentionTracking(
+                platform=mention.platform,
+                mention_id=mention.id
+            )
+            db.add(tracking)
+            db.commit()
             return False
-    else:
-        print(f"No match found for {mention.platform} mention {mention.id} above threshold {settings.similarity_threshold}")
-        # Still mark as processed to avoid reprocessing
-        tracking = MentionTracking(
-            platform=mention.platform,
-            mention_id=mention.id
-        )
-        db.add(tracking)
-        db.commit()
-        return False

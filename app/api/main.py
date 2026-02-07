@@ -4,8 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db, Question, init_db
 from app.services.embedding import get_embedding
+from app.api.contributions import router as contributions_router
 
 app = FastAPI(title="Bot X API", version="1.0.0")
+
+# Include routers
+app.include_router(contributions_router)
 
 
 class QuestionAnswerPair(BaseModel):

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help Bot Learn - Contribution</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+
+        .question-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+
+        .question-label {
+            color: #667eea;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .question-text {
+            color: #333;
+            font-size: 18px;
+            line-height: 1.6;
+        }
+
+        .form-section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .radio-option {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .radio-option:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .radio-option.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .radio-option input[type="radio"] {
+            margin-right: 10px;
+        }
+
+        .radio-option label {
+            cursor: pointer;
+            color: #333;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 15px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 100px;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .amount-section {
+            margin-bottom: 30px;
+        }
+
+        .amount-input-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .amount-input-group span {
+            font-size: 24px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        input[type="number"] {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            transition: border-color 0.2s;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .amount-hint {
+            color: #666;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error {
+            color: #dc3545;
+            font-size: 14px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{% if is_improvement %}Improve This Answer{% else %}Help the Bot Learn!{% endif %}</h1>
+        <p class="subtitle">Your contribution helps improve responses for everyone</p>
+
+        <div class="question-box">
+            <div class="question-label">Question</div>
+            <div class="question-text">{{ question }}</div>
+        </div>
+
+        {% if is_improvement %}
+        <div class="question-box" style="border-left-color: #ff9800; margin-bottom: 20px;">
+            <div class="question-label" style="color: #ff9800;">Current Answer (to be replaced)</div>
+            <div class="question-text">{{ existing_answer }}</div>
+        </div>
+
+        <div class="info-box" style="background: #fff3e0; border-left-color: #ff9800; color: #e65100;">
+            <strong>💡 Improving an existing answer</strong>
+            Provide a better answer below. You must contribute at least ${{ "%.2f"|format(minimum_amount_dollars) }} to replace the current answer.
+        </div>
+        {% else %}
+        <div class="info-box">
+            Choose one of the AI-generated suggestions below or write your own answer. Your contribution requires a minimum payment of ${{ "%.2f"|format(minimum_amount_dollars) }}.
+        </div>
+        {% endif %}
+
+        <form id="contributionForm">
+            <div class="form-section">
+                <div class="section-title">Select or Write an Answer</div>
+
+                {% for answer in suggested_answers %}
+                <div class="radio-option" onclick="selectOption({{ loop.index0 }})">
+                    <input type="radio" id="suggestion{{ loop.index0 }}" name="answer" value="{{ answer }}" onchange="updateCustomTextarea()">
+                    <label for="suggestion{{ loop.index0 }}">{{ answer }}</label>
+                </div>
+                {% endfor %}
+
+                <div class="radio-option" onclick="selectOption('custom')">
+                    <input type="radio" id="custom" name="answer" value="custom" onchange="updateCustomTextarea()">
+                    <label for="custom">Write your own answer</label>
+                </div>
+
+                <textarea
+                    id="customAnswer"
+                    placeholder="Write your custom answer here (10-1000 characters)..."
+                    disabled
+                    maxlength="1000"
+                ></textarea>
+            </div>
+
+            <div class="amount-section">
+                <div class="section-title">Contribution Amount</div>
+                <div class="amount-input-group">
+                    <span>$</span>
+                    <input
+                        type="number"
+                        id="amount"
+                        name="amount"
+                        min="{{ minimum_amount_dollars }}"
+                        step="0.01"
+                        value="{{ minimum_amount_dollars if minimum_amount_dollars > 5 else 5.00 }}"
+                        required
+                    >
+                </div>
+                <div class="amount-hint">
+                    Minimum ${{ "%.2f"|format(minimum_amount_dollars) }}{% if is_improvement %} (must be more than previous contribution){% endif %} - Choose any amount you'd like to contribute
+                </div>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                Proceed to Payment
+            </button>
+
+            <div class="error" id="error"></div>
+        </form>
+    </div>
+
+    <script>
+        const form = document.getElementById('contributionForm');
+        const customTextarea = document.getElementById('customAnswer');
+        const submitBtn = document.getElementById('submitBtn');
+        const errorDiv = document.getElementById('error');
+        const contributionId = {{ contribution_id }};
+        const minimumAmountDollars = {{ minimum_amount_dollars }};
+
+        function selectOption(index) {
+            const radio = index === 'custom'
+                ? document.getElementById('custom')
+                : document.getElementById(`suggestion${index}`);
+            radio.checked = true;
+            updateCustomTextarea();
+
+            // Update visual selection
+            document.querySelectorAll('.radio-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            radio.parentElement.classList.add('selected');
+        }
+
+        function updateCustomTextarea() {
+            const customRadio = document.getElementById('custom');
+            customTextarea.disabled = !customRadio.checked;
+            if (customRadio.checked) {
+                customTextarea.focus();
+            } else {
+                customTextarea.value = '';
+            }
+        }
+
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+        }
+
+        function hideError() {
+            errorDiv.classList.remove('show');
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideError();
+
+            // Get selected answer
+            const selectedRadio = document.querySelector('input[name="answer"]:checked');
+            if (!selectedRadio) {
+                showError('Please select or write an answer');
+                return;
+            }
+
+            let answer;
+            if (selectedRadio.value === 'custom') {
+                answer = customTextarea.value.trim();
+                if (answer.length < 10) {
+                    showError('Custom answer must be at least 10 characters');
+                    return;
+                }
+                if (answer.length > 1000) {
+                    showError('Custom answer must be less than 1000 characters');
+                    return;
+                }
+            } else {
+                answer = selectedRadio.value;
+            }
+
+            // Get amount
+            const amount = parseFloat(document.getElementById('amount').value);
+            if (isNaN(amount) || amount < minimumAmountDollars) {
+                showError(`Amount must be at least $${minimumAmountDollars.toFixed(2)}`);
+                return;
+            }
+            if (amount > 10000) {
+                showError('Amount must be less than $10,000');
+                return;
+            }
+
+            // Disable submit button
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+
+            try {
+                // Send to backend
+                const response = await fetch(`/api/contributions/${contributionId}/create-checkout`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        answer: answer,
+                        amount_cents: Math.round(amount * 100)
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to create checkout session');
+                }
+
+                // Redirect to Stripe checkout
+                window.location.href = data.checkout_url;
+
+            } catch (error) {
+                showError(error.message);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Proceed to Payment';
+            }
+        });
+
+        // Initialize amount field
+        document.getElementById('amount').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            if (!isNaN(value) && value < minimumAmountDollars) {
+                e.target.value = minimumAmountDollars.toFixed(2);
+            }
+        });
+    </script>
+</body>
+</html>

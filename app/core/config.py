@@ -33,6 +33,16 @@ class Settings(BaseSettings):
     # Application
     embedding_model: str = "text-embedding-3-small"
     similarity_threshold: float = 0.8
+    base_url: str = "http://localhost:8000"
+    contribution_expiry_hours: int = 24
+
+    # Stripe
+    stripe_api_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_min_contribution_cents: int = 100  # $1.00
+
+    # ChatGPT
+    chatgpt_model: str = "gpt-3.5-turbo"
 
     @property
     def get_enabled_platforms(self) -> List[str]:

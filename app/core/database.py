@@ -1,7 +1,9 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, func, UniqueConstraint, text
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, func, UniqueConstraint, text, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from pgvector.sqlalchemy import Vector
+from datetime import datetime, timedelta
 
 from app.core.config import settings
 
@@ -24,6 +26,7 @@ class Question(Base):
     question = Column(String, nullable=False)
     answer = Column(String, nullable=False)
     embedding = Column(Vector(1536), nullable=False)  # text-embedding-3-small produces 1536 dimensions
+    contribution_amount_cents = Column(Integer, default=0)  # Amount paid to contribute this answer
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -39,6 +42,48 @@ class MentionTracking(Base):
     platform = Column(String, nullable=False, index=True)
     mention_id = Column(String, nullable=False, index=True)
     processed_at = Column(DateTime, server_default=func.now())
+
+
+class PendingContribution(Base):
+    """Track contributions from initiation through completion."""
+
+    __tablename__ = "pending_contributions"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Mention tracking
+    platform = Column(String, nullable=False)
+    mention_id = Column(String, nullable=False)
+    author_id = Column(String, nullable=False)
+
+    # QA data
+    question = Column(Text, nullable=False)
+    suggested_answers = Column(JSONB, nullable=False)  # Array of 3 AI suggestions
+    selected_answer = Column(Text)
+
+    # Improvement tracking (when replacing existing answer)
+    improvement_of_question_id = Column(Integer)  # Question ID being improved (NULL for new)
+    existing_answer = Column(Text)  # Current answer being replaced (for display)
+    minimum_amount_cents = Column(Integer, default=100)  # Minimum required payment
+
+    # Payment tracking
+    stripe_session_id = Column(String, unique=True)
+    stripe_payment_intent = Column(String)
+    payment_status = Column(String, default='pending')  # pending, paid, failed
+    amount_cents = Column(Integer)  # User-chosen amount
+
+    # State
+    status = Column(String, default='awaiting_payment')
+    # Status flow: awaiting_payment → payment_received → qa_stored → complete
+
+    # Token for secure checkout URL
+    token = Column(String, unique=True, nullable=False, index=True)
+
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now())
+    expires_at = Column(DateTime, nullable=False)
+    paid_at = Column(DateTime)
+    completed_at = Column(DateTime)
 
 
 def get_db():

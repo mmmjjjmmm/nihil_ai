@@ -7,6 +7,8 @@ Bot X is an intelligent social media bot that uses vector embeddings and semanti
 
 - **Multi-Platform Support**: Works with Twitter/X and Bluesky
 - **Semantic Matching**: Uses vector embeddings for intelligent question matching
+- **Payment-Enabled Learning**: Users can teach the bot new answers via Stripe payments
+- **AI-Powered Suggestions**: ChatGPT generates answer options for contributions
 - **Configurable**: Easy platform selection and threshold tuning
 - **Scalable**: PostgreSQL with pgvector for efficient similarity search
 - **REST API**: Add Q&A pairs programmatically
@@ -34,6 +36,14 @@ cp .env.example .env
 3. Initialize database:
 ```bash
 botx init-db
+```
+or
+```bash
+uv run -m app.cli init-db
+```
+I need to run this in another terminal to "simulate the db locally"
+```bash
+./cloud-sql-proxy nihilai:europe-west9:nihil-korg-ai
 ```
 
 4. Add training data:
@@ -75,11 +85,63 @@ botx test-bluesky
 botx simulate-mention "Hey @bot, what are you?" --platform twitter
 ```
 
+## Contribution Flow (New!)
+
+The bot **always** offers users the chance to contribute, whether or not an answer exists:
+
+### When Answer Exists (Improvement)
+1. **Bot replies** with current answer + "💡 Not satisfied? Teach me a better answer: [link]"
+2. **User pays MORE** than previous contributor (e.g., if current answer cost $5, must pay $6+)
+3. **Answer replaced** with the better one
+
+### When No Answer Exists (New)
+1. **Bot replies** "I don't know this yet! Help me learn: [link]"
+2. **User pays minimum** $1+ to contribute new answer
+3. **Answer added** to knowledge base
+
+### Contribution Process
+1. **AI Generates Suggestions**: ChatGPT creates 3 diverse answer options
+2. **User Selects/Writes**: Choose suggestion or write custom answer
+3. **Payment Processing**: Stripe handles secure payment (user-chosen amount)
+4. **QA Stored**: Answer is embedded and added to bot's knowledge base
+5. **Confirmation**: Bot replies thanking the contributor
+
+This creates a **competitive improvement system** where answers get progressively better through higher contributions.
+
+### Setting Up Contributions
+
+1. **Get Stripe API Keys**:
+   - Sign up at [stripe.com](https://stripe.com)
+   - Get test keys from Dashboard → Developers → API keys
+   - Add to `.env`: `STRIPE_API_KEY` and `STRIPE_WEBHOOK_SECRET`
+
+2. **Configure Webhook**:
+   - In Stripe Dashboard → Developers → Webhooks
+   - Add endpoint: `https://yourdomain.com/api/webhooks/stripe`
+   - Select event: `checkout.session.completed`
+   - Copy signing secret to `.env`
+
+3. **Local Testing with Stripe CLI**:
+   ```bash
+   # Install Stripe CLI
+   stripe listen --forward-to localhost:8000/api/webhooks/stripe
+
+   # Use test card: 4242 4242 4242 4242
+   ```
+
+4. **Set Base URL** in `.env`:
+   ```bash
+   BASE_URL=http://localhost:8000  # Development
+   BASE_URL=https://yourdomain.com  # Production
+   ```
+
 ## Architecture
 
-- **FastAPI**: REST API for Q&A management
+- **FastAPI**: REST API for Q&A management and contribution flow
 - **PostgreSQL + pgvector**: Vector similarity search
-- **OpenAI**: Embedding generation
+- **OpenAI**: Embedding generation and ChatGPT for answer suggestions
+- **Stripe**: Payment processing for contributions
+- **Jinja2**: HTML templates for checkout pages
 - **Multi-platform workers**: Abstract platform interface for easy extensibility
 
 ---
