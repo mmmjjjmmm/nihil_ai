@@ -37,10 +37,13 @@ class BlueskyWorker(BasePlatformWorker):
 
     def check_mentions(self, since_id: str | None = None) -> List[Mention]:
         """
-        Fetch Bluesky notifications mentioning the bot since the last check.
+        Fetch Bluesky notifications mentioning the bot.
+
+        Note: Duplicate filtering is handled by process_mention via database check,
+        so we return all mention notifications and let the database be the source of truth.
 
         Args:
-            since_id: Cursor for pagination (not used in initial implementation)
+            since_id: Not used for Bluesky (kept for interface compatibility)
 
         Returns:
             List of Mention objects
@@ -56,11 +59,6 @@ class BlueskyWorker(BasePlatformWorker):
             for notif in notifications.notifications:
                 # Only process mention notifications
                 if notif.reason != "mention":
-                    continue
-
-                # Skip if already seen (using since_id as a timestamp comparison)
-                # Note: Bluesky uses ISO timestamps, not numeric IDs
-                if since_id and notif.indexed_at <= since_id:
                     continue
 
                 # Extract post information
@@ -106,9 +104,7 @@ class BlueskyWorker(BasePlatformWorker):
 
             # Get the original post to set up reply references
             try:
-                original_post = self.client.app.bsky.feed.get_posts(
-                    uris=[mention_id]
-                )
+                original_post = self.client.get_posts(uris=[mention_id])
                 if not original_post.posts:
                     print(f"Could not find original post: {mention_id}")
                     return False
@@ -130,18 +126,8 @@ class BlueskyWorker(BasePlatformWorker):
                 )
             )
 
-            # Create the post record
-            self.client.com.atproto.repo.create_record(
-                models.ComAtprotoRepoCreateRecord.Data(
-                    repo=self.client.me.did,
-                    collection=models.ids.AppBskyFeedPost,
-                    record=models.AppBskyFeedPost.Main(
-                        created_at=datetime.now(timezone.utc).isoformat(),
-                        text=text,
-                        reply=reply_ref
-                    )
-                )
-            )
+            # Send the reply using the simpler send_post method
+            self.client.send_post(text=text, reply_to=reply_ref)
 
             return True
 
